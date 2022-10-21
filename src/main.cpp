@@ -2,6 +2,7 @@
 #include <FlexCAN_T4.h>
 
 #define AUTON_TOGGLE_PIN 32
+#define ESTOP_PIN 31
 
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> h_priority;
 FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_16> l_priority;
@@ -41,9 +42,15 @@ void get_control_messages(const CAN_message_t &msg){
 }
 
 void setup() {
-    pinMode(LED_BUILTIN, OUTPUT);
-    //We want to boot into autonomous mode
     Serial.begin(115200);
+    pinMode(LED_BUILTIN, OUTPUT);
+    pinMode(ESTOP_PIN, OUTPUT);
+    pinMode(AUTON_TOGGLE_PIN, INPUT);
+
+    //If this ecu crashes this pin should go low firing the ESTOP
+    digitalWrite(ESTOP_PIN, HIGH);
+
+    //Start in autonomous mode
     auton_disable = false;
 
     //Set up low priority CAN bus
@@ -77,9 +84,6 @@ void setup() {
     l_priority.onReceive(MB0, send_encoder_data);
     l_priority.setMBFilter(MB0, 0x6);
     l_priority.mailboxStatus();
-
-
-    //pinMode(AUTON_TOGGLE_PIN, INPUT);
 }
 
 void publish_data(message* msg){
@@ -126,7 +130,7 @@ void publish_data(message* msg){
 
 void receive_pc_data(){
     //Get new commands from PC
-    struct message *msg = nullptr;
+    struct message *msg;
     int count = 0;
     uint8_t buf[515];
     while(count < 515 && Serial.available()){
@@ -141,6 +145,9 @@ void receive_pc_data(){
 }
 
 void loop() {
+    if(digitalRead(AUTON_TOGGLE_PIN) == HIGH){
+        auton_disable = !auton_disable;
+    }
     h_priority.events();
     if(Serial.available()){
         receive_pc_data();
