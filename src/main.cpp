@@ -13,15 +13,35 @@ struct message{
     uint8_t data[512];
 } __attribute__((packed));
 
-void send_pc_data(const CAN_message_t &msg){
+void send_encoder_data(const CAN_message_t &msg){
     //Send data back to the PC
+    struct message enc_msg;
+    enc_msg.type = msg.id;
+    enc_msg.len = msg.len;
+    for(uint8_t i = 0; i<msg.len; i++){
+        enc_msg.data[i] = msg.buf[i];
+    }
+    Serial.write(reinterpret_cast<const char *>(&enc_msg), sizeof(message));
 }
 
 void kill_auton(const CAN_message_t &msg){
-    //Only thing that should be coming off high priority bus will be auto disable messages for now
+    //callback for filtered mailbox MB0 which only receives kill auton messages
+    if(msg.id == 0x0){
+        digitalWrite(LED_BUILTIN, HIGH);
+        auton_disable = true;
+    }
+    else{
+        Serial.write("This callback has fired with an incorrect message! :(");
+    }
+
+}
+
+void get_control_messages(const CAN_message_t &msg){
+    //callback for getting back messages from the bus
 }
 
 void setup() {
+    pinMode(LED_BUILTIN, OUTPUT);
     //We want to boot into autonomous mode
     Serial.begin(115200);
     auton_disable = false;
@@ -29,74 +49,101 @@ void setup() {
     //Set up low priority CAN bus
     l_priority.begin();
     l_priority.setBaudRate(250000);
-    l_priority.enableFIFO();
-    l_priority.enableFIFOInterrupt();
-    l_priority.onReceive(send_pc_data);
 
     //Set up high priority CAN bus
     h_priority.begin();
     h_priority.setBaudRate(250000);
-    h_priority.enableFIFO();
-    h_priority.enableFIFOInterrupt();
-    h_priority.onReceive(kill_auton);
+
+    /*
+     * Setup mailboxes for high priority bus
+     */
+    h_priority.setMB(MB0, RX, EXT);
+    h_priority.setMB(MB1, RX, EXT);
+    h_priority.setMB(MB2, TX, EXT);
+    h_priority.setMBFilter(REJECT_ALL);
+    h_priority.enableMBInterrupts();
+    h_priority.onReceive(MB0, kill_auton);
+    h_priority.onReceive(MB1, get_control_messages);
+    h_priority.setMBFilter(MB0, 0x00);
+    h_priority.setMBFilter(MB1, 0x1, 0x4, 0x5);
+    h_priority.mailboxStatus();
+
+    /*
+     * Setup mailboxes for low priority bus
+     */
+    l_priority.setMB(MB0, RX, EXT);
+    l_priority.setMBFilter(REJECT_ALL);
+    l_priority.enableMBInterrupts();
+    l_priority.onReceive(MB0, send_encoder_data);
+    l_priority.setMBFilter(MB0, 0x6);
+    l_priority.mailboxStatus();
+
+
     //pinMode(AUTON_TOGGLE_PIN, INPUT);
 }
 
 void publish_data(message* msg){
-    //Publish received data onto the CAN bus
+    //Publish received control data onto the CAN bus
+    CAN_message_t cmsg;
     switch(msg->type){
         case 1:
             //Send brake message out
+            cmsg.id = msg->type;
+            cmsg.len = msg->len;
+            if(msg->len <= 8){
+                //Make sure that we don't try to put 512 bytes of data into an 8 byte message
+                for(uint8_t i = 0; i < msg->len; i++){
+                    cmsg.buf[i] = msg->data[i];
+                }
+                h_priority.write(MB2, cmsg);
+            }
             break;
         case 4:
             //Send steer message out
+            //TODO: Change this to match spec of steering motor
+            cmsg.id = msg->type;
+            cmsg.len = msg->len;
+            if(msg->len <= 8){
+                for(uint8_t i = 0; i < msg->len; i++){
+                    cmsg.buf[i] = msg->data[i];
+                }
+                h_priority.write(MB2, cmsg);
+            }
             break;
         case 5:
             //Send throttle message out
+            cmsg.id = msg->type;
+            cmsg.len = msg->len;
+            if(msg->len <= 8){
+                for(uint8_t i = 0; i < msg->len; i++){
+                    cmsg.buf[i] = msg->data[i];
+                }
+                h_priority.write(MB2, cmsg);
+            }
             break;
     }
 }
 
-void recieve_pc_data(){
+void receive_pc_data(){
     //Get new commands from PC
     struct message *msg = nullptr;
     int count = 0;
     uint8_t buf[515];
     while(count < 515 && Serial.available()){
-        //Serial.write("Got data from PC!");
         buf[count++] = Serial.read();
     }
-    Serial.print("\n");
-    Serial.print("Got data from PC, Converting...\n");
     if(count > 2){
         msg = reinterpret_cast<message*>(buf);
         if(!auton_disable){
             publish_data(msg);
         }
-        /*switch(msg->type){
-            case 1:
-                Serial.print("Got Brake Message!");
-                publish_data(msg);
-                break;
-            case 4:
-                Serial.print("Got Steering Message!");
-                for(uint8_t i = 0; i < msg->len; i++){
-                    Serial.print(msg->data[i]);
-                    Serial.print("\n");
-                }
-                break;
-            default:
-                Serial.print("Got unknown message!");
-                break;
-        }*/
     }
 }
 
 void loop() {
-    //Buffer for serial data
-    if(Serial.available()){
-        recieve_pc_data();
-    }
     h_priority.events();
+    if(Serial.available()){
+        receive_pc_data();
+    }
     l_priority.events();
 }
