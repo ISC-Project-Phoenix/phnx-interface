@@ -16,13 +16,26 @@ struct message{
 
 void send_encoder_data(const CAN_message_t &msg){
     //Send data back to the PC
+    delay(2);
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(2);
+    digitalWrite(LED_BUILTIN, LOW);
     struct message enc_msg;
     enc_msg.type = msg.id;
     enc_msg.len = msg.len;
     for(uint8_t i = 0; i<msg.len; i++){
         enc_msg.data[i] = msg.buf[i];
     }
-    Serial.write(reinterpret_cast<const char *>(&enc_msg), sizeof(message));
+    //Serial.write(reinterpret_cast<const char *>(&enc_msg), sizeof(message));
+    Serial.print(enc_msg.type);
+    Serial.print('\n');
+    Serial.print(enc_msg.len);
+    Serial.print('\n');
+    for(uint8_t i = 0; i< enc_msg.len; i++){
+        Serial.print(enc_msg.data[i]);
+    }
+    Serial.print('\n');
+
 }
 
 void kill_auton(const CAN_message_t &msg){
@@ -46,6 +59,10 @@ void setup() {
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(ESTOP_PIN, OUTPUT);
     pinMode(AUTON_TOGGLE_PIN, INPUT);
+
+    digitalWrite(LED_BUILTIN, HIGH);
+    delay(1000);
+    digitalWrite(LED_BUILTIN, LOW);
 
     //If this ecu crashes this pin should go low firing the ESTOP
     digitalWrite(ESTOP_PIN, HIGH);
@@ -94,11 +111,13 @@ void publish_data(message* msg){
             //Send brake message out
             cmsg.id = msg->type;
             cmsg.len = msg->len;
+            cmsg.flags.extended = 1;
             if(msg->len <= 8){
                 //Make sure that we don't try to put 512 bytes of data into an 8 byte message
                 for(uint8_t i = 0; i < msg->len; i++){
                     cmsg.buf[i] = msg->data[i];
                 }
+                //Serial.write("Sending message out!");
                 h_priority.write(MB2, cmsg);
             }
             break;
@@ -107,10 +126,12 @@ void publish_data(message* msg){
             //TODO: Change this to match spec of steering motor
             cmsg.id = msg->type;
             cmsg.len = msg->len;
+            cmsg.flags.extended = 1;
             if(msg->len <= 8){
                 for(uint8_t i = 0; i < msg->len; i++){
                     cmsg.buf[i] = msg->data[i];
                 }
+                //Serial.write("Sending message out!");
                 h_priority.write(MB2, cmsg);
             }
             break;
@@ -118,10 +139,12 @@ void publish_data(message* msg){
             //Send throttle message out
             cmsg.id = msg->type;
             cmsg.len = msg->len;
+            cmsg.flags.extended = 1;
             if(msg->len <= 8){
                 for(uint8_t i = 0; i < msg->len; i++){
                     cmsg.buf[i] = msg->data[i];
                 }
+                //Serial.write("Sending message out!");
                 h_priority.write(MB2, cmsg);
             }
             break;
@@ -139,6 +162,7 @@ void receive_pc_data(){
     if(count > 2){
         msg = reinterpret_cast<message*>(buf);
         if(!auton_disable){
+            //Serial.write("Sending data onto can bus!");
             publish_data(msg);
         }
     }
