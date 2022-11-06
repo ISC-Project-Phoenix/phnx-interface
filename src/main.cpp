@@ -7,6 +7,7 @@
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> h_priority;
 FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_16> l_priority;
 bool auton_disable;
+bool training_mode;
 
 struct message{
     uint8_t type;
@@ -15,11 +16,8 @@ struct message{
 } __attribute__((packed));
 
 void send_encoder_data(const CAN_message_t &msg){
+    //TODO: Fix this so that real encoder data can be sent, also add activity light
     //Send data back to the PC
-    delay(2);
-    digitalWrite(LED_BUILTIN, HIGH);
-    delay(2);
-    digitalWrite(LED_BUILTIN, LOW);
     struct message enc_msg;
     enc_msg.type = msg.id;
     enc_msg.len = msg.len;
@@ -47,11 +45,22 @@ void kill_auton(const CAN_message_t &msg){
     else{
         Serial.write("This callback has fired with an incorrect message! :(");
     }
-
 }
 
 void get_control_messages(const CAN_message_t &msg){
-    //callback for getting back messages from the bus
+    //Callback for sending drive by wire trainging data to the PC
+    //Prevents this from firing on loopback
+    if(training_mode){
+        struct message ctrl_msg;
+        ctrl_msg.type = msg.id;
+        ctrl_msg.len = msg.len;
+        if(ctrl_msg.len > 0){
+            for(uint8_t i = 0; i < ctrl_msg.len; i++){
+                ctrl_msg.data[i] = msg.buf[i];
+            }
+        }
+        Serial.write(reinterpret_cast<const char *>(&ctrl_msg), sizeof(message));
+    }
 }
 
 void setup() {
@@ -67,8 +76,9 @@ void setup() {
     //If this ecu crashes this pin should go low firing the ESTOP
     digitalWrite(ESTOP_PIN, HIGH);
 
-    //Start in autonomous mode
+    //Start in autonomous/teleop mode with training mode disabled
     auton_disable = false;
+    training_mode = false;
 
     //Set up low priority CAN bus
     l_priority.begin();
@@ -81,8 +91,13 @@ void setup() {
     /*
      * Setup mailboxes for high priority bus
      */
+    //Mailbox dedicated to recieving disable auton messages
     h_priority.setMB(MB0, RX, EXT);
+
+    //Mailbox dedicated to recieving control messages from the bus for training mode
     h_priority.setMB(MB1, RX, EXT);
+    
+    //Mailbox dedicated to sending control messages onto high priority bus
     h_priority.setMB(MB2, TX, EXT);
     h_priority.setMBFilter(REJECT_ALL);
     h_priority.enableMBInterrupts();
@@ -95,6 +110,7 @@ void setup() {
     /*
      * Setup mailboxes for low priority bus
      */
+    //Mailbox dedicated to recieving encoder messages
     l_priority.setMB(MB0, RX, EXT);
     l_priority.setMBFilter(REJECT_ALL);
     l_priority.enableMBInterrupts();
@@ -131,7 +147,6 @@ void publish_data(message* msg){
                 for(uint8_t i = 0; i < msg->len; i++){
                     cmsg.buf[i] = msg->data[i];
                 }
-                //Serial.write("Sending message out!");
                 h_priority.write(MB2, cmsg);
             }
             break;
@@ -144,10 +159,18 @@ void publish_data(message* msg){
                 for(uint8_t i = 0; i < msg->len; i++){
                     cmsg.buf[i] = msg->data[i];
                 }
-                //Serial.write("Sending message out!");
                 h_priority.write(MB2, cmsg);
             }
             break;
+        case 7:
+            //Training mode enable message
+            cmsg.id = msg->type;
+            cmsg.len = msg->len;
+            cmsg.flags.extended = 1;
+            training_mode = true;
+            //No data should be included in this can message
+            h_priority.write(MB2, cmsg);
+
     }
 }
 
@@ -161,10 +184,7 @@ void receive_pc_data(){
     }
     if(count > 2){
         msg = reinterpret_cast<message*>(buf);
-        if(!auton_disable){
-            //Serial.write("Sending data onto can bus!");
-            publish_data(msg);
-        }
+        publish_data(msg);
     }
 }
 
@@ -173,7 +193,7 @@ void loop() {
         auton_disable = !auton_disable;
     }
     h_priority.events();
-    if(Serial.available()){
+    if(Serial.available() && !auton_disable && !training_mode){
         receive_pc_data();
     }
     l_priority.events();
