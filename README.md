@@ -8,5 +8,5 @@ See [the design doc](https://github.com/ISC-Project-Phoenix/design/blob/main/sof
 ## Relevant Pins:
 - High Priority Bus CAN RX Pin: 23
 - High Priority Bus CAN TX Pin: 22
-- Low Priority Bus CAN RX Pin: 2
-- Low Priority Bus CAN RX Pin: 3
+- Low Priority Bus CAN RX Pin: 0
+- Low Priority Bus CAN TX Pin: 1
