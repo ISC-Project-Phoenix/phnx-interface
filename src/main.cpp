@@ -162,7 +162,7 @@ void publish_data(message* msg){
                 h_priority.write(MB2, cmsg);
             }
             break;
-        case 7:
+        case 8:
             //Training mode enable message
             cmsg.id = msg->type;
             cmsg.len = msg->len;
