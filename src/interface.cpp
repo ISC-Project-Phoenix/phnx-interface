@@ -1,7 +1,7 @@
 #include "interface.hpp"
 
 message Interface::convert_to_serial(const CAN_message_t &msg) {
-    message smsg;
+    struct message smsg;
     smsg.type = msg.id;
     smsg.len = msg.len;
     for(int i = 0; i < msg.len; i++){
@@ -23,4 +23,4 @@ CAN_message_t Interface::convert_to_can(message *msg) {
     return cmsg;
 }
 
-Interface::Interface() {}
+Interface::Interface() = default;

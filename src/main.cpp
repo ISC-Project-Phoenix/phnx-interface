@@ -1,9 +1,9 @@
 #include "interface.hpp"
 
-#define AUTON_TOGGLE_PIN 32
-#define ESTOP_DEADMAN_PIN 31
-#define ESTOP_REFERENCE_PIN 30
-#define PAUSE_REFERENCE_PIN 29
+constexpr int AUTON_TOGGLE_PIN = 32;
+constexpr int ESTOP_DEADMAN_PIN = 31;
+constexpr int ESTOP_REFERENCE_PIN = 30;
+constexpr int PAUSE_REFERENCE_PIN = 29;
 
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> h_priority;
 FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_16> l_priority;
