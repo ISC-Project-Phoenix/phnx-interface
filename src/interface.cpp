@@ -1,7 +1,7 @@
 #include "interface.hpp"
 
 message Interface::convert_to_serial(const CAN_message_t &msg) {
-    struct message smsg;
+    message smsg{};
     smsg.type = msg.id;
     smsg.len = msg.len;
     for(int i = 0; i < msg.len; i++){

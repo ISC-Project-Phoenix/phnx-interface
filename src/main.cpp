@@ -19,7 +19,7 @@ bool auton_kill = false;
 Interface interface_ecu{};
 
 void can_receive(const CAN_message_t &msg) {
-    message smsg = interface_ecu.convert_to_serial(msg);
+    message smsg = Interface::convert_to_serial(msg);
     if (msg.id == KillAuton) {
         auton_kill = true;
         digitalWrite(LED_BUILTIN, HIGH);
@@ -29,7 +29,7 @@ void can_receive(const CAN_message_t &msg) {
 
 void can_send(message &msg) {
     if (!auton_kill && !training_mode) {
-        CAN_message_t cmsg = interface_ecu.convert_to_can(&msg);
+        CAN_message_t cmsg = Interface::convert_to_can(&msg);
         if (cmsg.id == TrainingMode) {
             training_mode = true;
         }
