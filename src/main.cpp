@@ -16,8 +16,7 @@ enum CanMappings {
 bool training_mode = false;
 bool auton_kill = false;
 
-Interface interface_ecu{};
-
+//Send received CAN messages to the pc via the serial connection
 void can_receive(const CAN_message_t &msg) {
     message smsg = Interface::convert_to_serial(msg);
     if (msg.id == KillAuton) {
@@ -27,6 +26,7 @@ void can_receive(const CAN_message_t &msg) {
     Serial.write(reinterpret_cast<const char *>(&smsg), sizeof(message));
 }
 
+//Send received serial messages onto the CAN bus
 void can_send(message &msg) {
     if (!auton_kill && !training_mode) {
         CAN_message_t cmsg = Interface::convert_to_can(&msg);
@@ -37,7 +37,7 @@ void can_send(message &msg) {
     }
 }
 
-void receive_pc_data() {
+void serial_receive() {
     //Get new commands from PC
     struct message *msg;
     int count = 0;
@@ -114,9 +114,9 @@ void loop() {
     h_priority.events();
 
     if (Serial.available() && !auton_kill && !training_mode) {
-        noInterrupts();
-        receive_pc_data();
-        interrupts();
+        noInterrupts()
+        serial_receive();
+        interrupts()
     }
 
     l_priority.events();
