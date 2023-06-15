@@ -1,6 +1,6 @@
 # Phoenix Interface ECU Board
 
-This ECU board is responisble for taking in data from the PC and transforming that data into CAN 2.0b frames that
+This ECU board is responsible for taking in data from the PC and transforming that data into CAN 2.0b frames that
 are then published on the CAN bus.
 
 See [the design doc](https://github.com/ISC-Project-Phoenix/design/blob/main/software/embed/Interface-ECU.md) for more info.
