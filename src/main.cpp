@@ -1,17 +1,17 @@
 #include "interface.hpp"
 
+constexpr int SERIAL_BAUD = 115200;
 constexpr int AUTON_TOGGLE_PIN = 32;
 constexpr int ESTOP_DEADMAN_PIN = 31;
 constexpr int ESTOP_REFERENCE_PIN = 30;
 constexpr int PAUSE_REFERENCE_PIN = 29;
-constexpr int HIGH_PRIORITY_BAUD = 500000;
 constexpr int LOW_PRIORITY_BAUD = 250000;
+constexpr int HIGH_PRIORITY_BAUD = 500000;
 
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> h_priority;
 FlexCAN_T4<CAN2, RX_SIZE_256, TX_SIZE_16> l_priority;
 
 bool training_mode = false;
-bool test = false;
 bool auton_kill = false;
 
 message estop_msg{
@@ -65,7 +65,7 @@ void estop() {
 }
 
 void setup() {
-    Serial.begin(9600);
+    Serial.begin(SERIAL_BAUD);
     pinMode(LED_BUILTIN, OUTPUT);
     pinMode(ESTOP_DEADMAN_PIN, OUTPUT);
     pinMode(AUTON_TOGGLE_PIN, INPUT);
