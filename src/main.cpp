@@ -16,14 +16,14 @@ bool auton_kill = false;
 
 message estop_msg{
         .header = PKG_HEADER,
-        .type = 0x0,
+        .type = CanMappings::KillAuton,
         .len = 0x0,
 };
 
 //Send received CAN messages to the pc via the serial connection
 void serial_send(const CAN_message_t &can_msg) {
     message serial_msg = Interface::convert_to_serial(can_msg);
-    if (can_msg.id == KillAuton) {
+    if (can_msg.id == CanMappings::KillAuton) {
         auton_kill = true;
         digitalWrite(LED_BUILTIN, HIGH);
     }
@@ -34,7 +34,7 @@ void serial_send(const CAN_message_t &can_msg) {
 void can_send(message &msg) {
     if (!auton_kill && !training_mode) {
         CAN_message_t cmsg = Interface::convert_to_can(&msg);
-        if (cmsg.id == TrainingMode) {
+        if (cmsg.id == CanMappings::TrainingMode) {
             training_mode = true;
         }
         h_priority.write(cmsg);
