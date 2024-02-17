@@ -62,11 +62,9 @@ void setup() {
 
     //Mailbox dedicated to receiving control messages
     h_priority.setMB(MB0, RX, EXT);
-    h_priority.setMBFilter(REJECT_ALL);
+    h_priority.setMBFilter(ACCEPT_ALL);
     h_priority.enableMBInterrupts();
     h_priority.onReceive(MB0, serial_send);
-    h_priority.setMBFilter(MB0, CanMappings::KillAuton, CanMappings::SetBrake, CanMappings::SetAngle,
-                           CanMappings::GetAngle, CanMappings::SetThrottle);
     h_priority.mailboxStatus();
 }
 
