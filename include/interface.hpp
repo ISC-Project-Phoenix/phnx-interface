@@ -3,6 +3,7 @@
 
 #define PKG_HEADER 0x54
 #define HEADER_SIZE 4
+#define ESTOP_QUERY_PIN PIN_A4
 
 enum CanMappings {
     KillAuton = 0x0,
@@ -14,6 +15,7 @@ enum CanMappings {
     SetThrottle = 0x6,
     EncoderTick = 0x7,
     TrainingMode = 0x8,
+    EnableAuton = 0x9,
 };
 
 struct message {
