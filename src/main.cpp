@@ -5,29 +5,18 @@ constexpr int HIGH_PRIORITY_BAUD = 500000;
 
 FlexCAN_T4<CAN1, RX_SIZE_256, TX_SIZE_16> h_priority;
 
-bool training_mode = false;
-bool auton_kill = false;
-
 //Send received CAN messages to the pc via the serial connection
 void serial_send(const CAN_message_t &can_msg) {
     message serial_msg = Interface::convert_to_serial(can_msg);
-    if (can_msg.id == CanMappings::KillAuton) {
-        auton_kill = true;
-        digitalWrite(LED_BUILTIN, HIGH);
-    }
+
     Serial.write(reinterpret_cast<const char *>(&serial_msg), HEADER_SIZE + serial_msg.len);
 }
 
 //Send received serial messages onto the CAN bus
 void can_send(message &msg) {
-    if (!auton_kill && !training_mode) {
-        CAN_message_t cmsg = Interface::convert_to_can(&msg);
-        if (cmsg.id == CanMappings::TrainingMode) {
-            training_mode = true;
-        }
+    CAN_message_t cmsg = Interface::convert_to_can(&msg);
 
-        h_priority.write(cmsg);
-    }
+    h_priority.write(cmsg);
 }
 
 void serial_receive() {
@@ -44,9 +33,72 @@ void serial_receive() {
     }
 }
 
+/// On estop activated, we set the brake to brake the kart, and signal the transition to ROS.
+void estop_stopped() {
+    message brake_full{
+            0x54,
+            CanMappings::SetBrake,
+            1,
+            {0x37}
+    };
+
+    message pc_kill{
+            0x54,
+            CanMappings::KillAuton,
+            0,
+            {}
+    };
+
+    can_send(brake_full);
+    serial_send(Interface::convert_to_can(&pc_kill));
+}
+
+/// On estop released, we set the brake to 0, and signal the transition to ROS.
+void estop_released() {
+    message brake_zero{
+            0x54,
+            CanMappings::SetBrake,
+            1,
+            {0}
+    };
+
+    message pc_enable{
+            0x54,
+            CanMappings::EnableAuton,
+            0,
+            {}
+    };
+
+    can_send(brake_zero);
+    serial_send(Interface::convert_to_can(&pc_enable));
+}
+
+volatile bool estopped = true;
+volatile uint32_t last_stop = 0;
+
+void estop_cb() {
+    // Debounce
+    if (millis() - last_stop > 700) {
+        estopped = !estopped;
+
+        if (estopped) {
+            estop_stopped();
+        } else {
+            estop_released();
+        }
+
+        last_stop = millis();
+    }
+}
+
 void setup() {
     Serial.begin(SERIAL_BAUD);
     pinMode(LED_BUILTIN, OUTPUT);
+
+    // Estop state. Will be LOW when ESTOP is ESTOPed, HIGH when vehicle is active.
+    pinMode(ESTOP_QUERY_PIN, INPUT_PULLDOWN);
+
+    attachInterrupt(ESTOP_QUERY_PIN, &estop_cb, CHANGE);
 
     digitalToggle(LED_BUILTIN);
 
@@ -66,12 +118,21 @@ void setup() {
     h_priority.enableMBInterrupts();
     h_priority.onReceive(MB0, serial_send);
     h_priority.mailboxStatus();
+
+    // Zero brake when boot, as we start stopped
+    message brake_zero{
+            0x54,
+            CanMappings::SetBrake,
+            1,
+            {0}
+    };
+    can_send(brake_zero);
 }
 
 void loop() {
     h_priority.events();
 
-    if (Serial.available() && !auton_kill && !training_mode) {
+    if (Serial.available()) {
         noInterrupts()
         serial_receive();
         interrupts()
